@@ -45,6 +45,7 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
+    <Reference Include="System.Printing" />
     <Reference Include="System.Xml" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Core" />
@@ -66,9 +67,13 @@
     <Compile Include="AboutProj.xaml.cs">
       <DependentUpon>AboutProj.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Classes\Action.cs" />
+    <Compile Include="Classes\ListOfEnvironmentsAnditsObjects.cs" />
     <Compile Include="Classes\Prediction.cs" />
+    <Compile Include="Classes\PropertyOfWord.cs" />
     <Compile Include="Classes\Rootobject.cs" />
     <Compile Include="Classes\Sentence.cs" />
+    <Compile Include="Classes\ThingsInEnvironments.cs" />
     <Compile Include="UserControlCreate.xaml.cs">
       <DependentUpon>UserControlCreate.xaml</DependentUpon>
     </Compile>

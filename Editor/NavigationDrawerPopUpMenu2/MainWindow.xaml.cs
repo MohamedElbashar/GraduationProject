@@ -2,6 +2,7 @@
 using NavigationDrawerPopUpMenu2.Classes;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Windows;
@@ -70,13 +71,13 @@ namespace NavigationDrawerPopUpMenu2
                     break;
             }
         }
+
         private void textBox_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
         {
             bool found = false;
             var border = (resultStack.Parent as ScrollViewer)?.Parent as Border;
             var data = Prediction.Models();
             string query = (sender as TextBox)?.Text;
-            //            var words = textHandler(query);
             if (query.Length == 0)
             {
                 resultStack.Children.Clear();
@@ -125,21 +126,242 @@ namespace NavigationDrawerPopUpMenu2
 
         private void Parser(object sender, RoutedEventArgs e)
         {
-            string str = "Ali wakes up from bed and goes to Television in hole, Ali sits down on chair to eat his food,then Ali changes his clothes from cupboard in bedroom ,at last he go out door. Ali ridding the bus to go to school,Enter class room and sitting on his chair, listening carefully to his teacher while she teaches, then go from school to home. Ali goes to garden to run.";
+
+            var Enviroments = ListOfEnvironmentsAnditsObjects.EnvAndObjects();
+
+            string str = textBox.Text;
             var json = new WebClient().DownloadString("http://192.168.137.85:5000/" + str);
 
 
+            Dictionary<string, string> refenceMap = new Dictionary<string, string>();
+
             string createText = json + Environment.NewLine;
-            File.WriteAllText(@"C:\Users\Bashar\Desktop\ff.txt", createText);
+            List<action> LAction = new List<action>();
             try
             {
+
+
+
                 Rootobject jsonclass = JsonConvert.DeserializeObject<Rootobject>(json);
-                DataContext = jsonclass;
+                foreach (var t1 in jsonclass.coref)
+                {
+                    foreach (var t2 in t1)
+                    {
+                        string a = t2[0][0].ToString();
+                        string b = t2[1][0].ToString();
+                        refenceMap[a] = b;
+
+                    }
+
+                }
+
+                foreach (var sentence in jsonclass.sentences)
+                {
+                    foreach (var word in sentence.words)
+                    {
+                        var propertyOfWord = JsonConvert.DeserializeObject<PropertyOfWord>(word[1].ToString());
+                        if (propertyOfWord.PartOfSpeech == "VBZ" || propertyOfWord.PartOfSpeech == "VBG" ||
+                            propertyOfWord.PartOfSpeech == "VB")
+                        {
+                            LAction.Add(new action()
+                            {
+                                Name = word[0].ToString()
+                            });
+                        }
+
+                    }
+                }
+
+                int cnt_subject = 0, cnt = 0;
+                int ftwofrom = 0;
+                foreach (var sentence in jsonclass.sentences)
+                {
+                    foreach (var dep in sentence.dependencies)
+                    {
+                        if (dep[0] == "nsubj")
+                        {
+                            LAction[cnt_subject].ThingDOThis = (refenceMap.ContainsKey(dep[2]) == true) ? refenceMap[dep[2]] : dep[2];
+                            cnt_subject++;
+                        }
+
+                        if (dep[0] == "prep_on" || dep[0] == "prep_to")
+                        {
+                            if (dep[1] != LAction[cnt].Name)
+                            {
+                                cnt++;
+                            }
+                            LAction[cnt].TO = dep[2];
+                            cnt++;
+                            ftwofrom = 0;
+                        }
+                        else if (dep[0] == "prep_from" && LAction[cnt].TO == null)
+                        {
+                            if (ftwofrom == 1)
+                            {
+                                cnt++;
+                            }
+                            LAction[cnt].From = dep[2];
+                            ftwofrom = 1;
+                        }
+                    }
+                }
+                foreach (var act in LAction)
+                {
+                    if (act.From == null)
+                    {
+                        act.From = act.TO;
+                    }
+
+                    if (act.TO == null)
+                    {
+                        act.TO = act.From;
+                    }
+
+                    if ((act.TO == "home" && act.From == "school"
+                        ) || (act.From == "school" && act.TO == "home"))
+                    {
+                        act.Eniv = "street";
+                    }
+                }
+
+                foreach (var sentence in jsonclass.sentences)
+                {
+                    foreach (var dep in sentence.dependencies)
+                    {
+                        if (dep[0] == "prep_in")
+                        {
+                            foreach (var act in LAction)
+                            {
+                                if (act.Eniv == null)
+                                    if (act.Name == dep[1] || (act.From != null && act.From == dep[1]) || (act.TO != null && act.TO == dep[1]))
+                                    {
+                                        act.Eniv = dep[2];
+                                    }
+                            }
+                        }
+                    }
+                }
+
+                List<ThingsInEnvironments> lenv = ListOfEnvironmentsAnditsObjects.EnvAndObjects();
+                foreach (var act in LAction)
+                {
+                    if (act.Eniv == null)
+                    {
+
+                        string s = act.From;
+                        int f = 0;
+                        foreach (var thingsInEnvironmentse in lenv)
+                        {
+                            foreach (var o in thingsInEnvironmentse.Objects)
+                            {
+                                if (o == s)
+                                {
+                                    act.Eniv = thingsInEnvironmentse.NameofEnvironment;
+                                    f = 1;
+                                    break;
+                                }
+
+                                if (f == 1)
+                                    break;
+                            }
+                        }
+                        f = 0;
+                    }
+                }
+
+                string temp = "";
+                foreach (var action in LAction)
+                {
+                    if (action.Eniv != null)
+                    {
+                        temp = action.Eniv;
+                    }
+                    else
+                    {
+                        action.Eniv = temp;
+                    }
+                }
+
+
+
+                #region MyRegion
+
+                //int cnt = 0, cnt_in = 0, cnt_on = 0, cnt_from = 0, cnt_to = 0;
+                //foreach (var sentence in jsonclass.sentences)
+                //{
+                //    foreach (var dep in sentence.dependencies)
+                //    {
+
+                //        if (dep[0] == "nsubj")
+                //        {
+                //            LAction[cnt].ThingOfDo = (refenceMap.ContainsKey(dep[2]) == true) ? refenceMap[dep[2]] : dep[2];
+                //            cnt++;
+                //        }
+
+
+                //        if (dep[0] == "prep_from")
+                //        {
+                //            for (int i = cnt_from; i < LAction.Count; i++)
+                //            {
+                //                if (dep[1] == LAction[i].Name)
+                //                {
+                //                    cnt_from = i;
+                //                    cnt_from++;
+                //                    LAction[i].From = dep[2];
+                //                }
+                //            }
+                //        }
+
+                //        if (dep[0] == "prep_to")
+                //        {
+                //            for (int i = cnt_to; i < LAction.Count; i++)
+                //            {
+                //                if (dep[1] == LAction[i].Name)
+                //                {
+                //                    cnt_to = i;
+                //                    cnt_to++;
+                //                    LAction[i].TO = dep[2];
+                //                }
+                //            }
+
+                //        }
+
+                //        if (dep[0] == "prep_in")
+                //        {
+                //            for (int i = cnt_in; i < LAction.Count; i++)
+                //            {
+                //                if (dep[1] == LAction[i].Name)
+                //                {
+                //                    cnt_in = i;
+                //                    cnt_in++;
+                //                    LAction[i].From = dep[2];
+                //                }
+                //            }
+                //        }
+
+                //        if (dep[0] == "prep_on")
+                //        {
+                //            for (int i = cnt_to; i < LAction.Count; i++)
+                //            {
+                //                if (dep[1] == LAction[i].Name)
+                //                {
+                //                    cnt_to = i;
+                //                    cnt_to++;
+                //                    LAction[i].TO = dep[2];
+                //                }
+                //            }
+                //        }
+                //    }
+                //}
+
+                #endregion
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
             }
+            string printJson = JsonConvert.SerializeObject(LAction);
+            System.IO.File.WriteAllText(@"C:\Users\Bashar\Desktop\printed.json", printJson);
         }
 
         private void NightMode(object sender, RoutedEventArgs e)
